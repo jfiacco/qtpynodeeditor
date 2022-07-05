@@ -1,4 +1,4 @@
-import typing
+import typing, time
 from collections import OrderedDict
 
 from .enums import ReactToConnectionState
@@ -35,8 +35,39 @@ class NodeState:
         self._reacting_data_type = None
         self._resizing = False
 
+        ### NEW CODE ###
+        self._node = node
+        ### END ###
+
     def __getitem__(self, key):
         return self._ports[key]
+
+    ### NEW CODE ###
+    @property
+    def num_input_ports(self):
+        return len(self._ports[PortType.input])
+
+    def add_input_port(self):
+        idx = self.num_input_ports
+        self._ports[PortType.input][idx] = Port(self._node, port_type=PortType.input, index=idx)
+        self._ports[PortType.input][idx].connections.clear()
+
+    def remove_input_port(self):
+        assert(self.num_input_ports > 0)
+
+        last_idx = self.num_input_ports-1
+        for connection in self.input_connections:
+            idx = connection.get_port_index(PortType.input)
+            if idx == last_idx:
+                # Propagate invalid data to IN node
+                connection.propagate_empty_data()
+
+                # clear Connection side
+                connection.remove_from_nodes()
+                connection._cleanup()
+
+        self._ports[PortType.input].popitem()
+    ### END ###
 
     @property
     def ports(self):

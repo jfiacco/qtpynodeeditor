@@ -44,6 +44,11 @@ class Node(QObject, Serializable):
         self._model.data_updated.connect(self._on_port_index_data_updated)
         self._model.embedded_widget_size_updated.connect(self.on_node_size_updated)
 
+        ### NEW CODE ###
+        if hasattr(self._model.__class__, 'ports_updated'):
+            self._model.ports_updated.connect(self._on_sink_count_updated)
+        ### END ###
+
     def __hash__(self):
         return id(self._uid)
 
@@ -91,8 +96,8 @@ class Node(QObject, Serializable):
         )
 
     def walk_paths_by_port_type(
-                self, port_type: PortType
-            ) -> typing.Generator[typing.Tuple['Node', ...], None, None]:
+            self, port_type: PortType
+    ) -> typing.Generator[typing.Tuple['Node', ...], None, None]:
         """
         Yields paths to connected nodes by port type
 
@@ -124,7 +129,7 @@ class Node(QObject, Serializable):
             node_path, node = pending.popleft()
             seen.add(node)
             if node is not self:
-                yield tuple(node_path) + (node, )
+                yield tuple(node_path) + (node,)
 
             node_path = list(node_path) + [node]
             for node in get_connection_nodes(node.state):
@@ -309,6 +314,26 @@ class Node(QObject, Serializable):
         self.geometry.recalculate_size()
         for conn in self.state.all_connections:
             conn.graphics_object.move()
+
+    ### NEW CODE ###
+    def _on_sink_count_updated(self, num_sinks: int):
+        """
+        Data has been updated on this Node's output port port_index;
+        propagate it to any connections.
+
+        Parameters
+        ----------
+        index : int
+        """
+        if num_sinks < 1:
+            raise ValueError('Requested fewer than one input port')
+
+        while num_sinks != self._state.num_input_ports:
+            if self._state.num_input_ports > num_sinks:
+                self._state.remove_input_port()
+            elif self._state.num_input_ports < num_sinks:
+                self._state.add_input_port()
+    ### END ###
 
     @property
     def size(self) -> QSizeF:
